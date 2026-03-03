@@ -28,27 +28,26 @@ def predict():
             file = request.files['file_upload']
             df_upload = pd.read_csv(file)
             
-            # CLEANING: Make sure columns match your model (Tenure, Monthly_Charges, Support_Calls)
-            # This fixes small typos like 'tenure' or 'Monthly Charges'
+            # CLEANING: Match model columns (Tenure, Monthly_Charges, Support_Calls)
             df_upload.columns = df_upload.columns.str.strip().str.replace(' ', '_').str.title()
 
-            # EXTRA COLUMN PROTECTION: Only select the 3 columns the model knows
+            # Select only required columns
             X_bulk = df_upload[['Tenure', 'Monthly_Charges', 'Support_Calls']]
             
             # Make bulk predictions
             preds = model.predict(X_bulk)
             df_upload['Prediction'] = ["High Risk" if p == 1 else "Low Risk" for p in preds]
             
-            # Add results to our history list
+            # Add to history
             new_records = df_upload.to_dict(orient='records')
             predictions_history.extend(new_records)
             
             return render_template('index.html', 
-                                 prediction_text=f"Success! Processed {len(preds)} customers from CSV.", 
+                                 prediction_text=f"Success! Processed {len(preds)} customers.", 
                                  history=predictions_history)
 
         else:
-            # Standard Manual Input logic
+            # Manual Input logic
             tenure = float(request.form.get('tenure', 0))
             monthly_charges = float(request.form.get('monthly_charges', 0))
             support_calls = float(request.form.get('support_calls', 0))
@@ -67,10 +66,19 @@ def predict():
             return render_template('index.html', prediction_text=result, history=predictions_history)
             
     except Exception as e:
-        return f"Error: {str(e)}. Please ensure CSV has columns: Tenure, Monthly_Charges, Support_Calls"
+        return f"Error: {str(e)}. Ensure CSV has: Tenure, Monthly_Charges, Support_Calls"
 
 @app.route('/download')
 def download():
     if not predictions_history:
         return "No data available", 400
-    df = pd.DataFrame(predictions
+    # FIX APPLIED HERE:
+    df = pd.DataFrame(predictions_history)
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    return Response(output.getvalue(), mimetype="text/csv",
+                    headers={"Content-disposition": "attachment; filename=churn_results.csv"})
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
