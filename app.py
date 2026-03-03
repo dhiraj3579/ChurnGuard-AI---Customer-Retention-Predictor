@@ -1,40 +1,38 @@
-from flask import Flask, render_template, request
-import pickle
-import numpy as np
-
 import os
+import pickle
+import pandas as pd
+from flask import Flask, render_template, request
+
+# Initialize Flask with the correct template folder
 app = Flask(__name__, template_folder='templates')
 
 # Load the trained model
-with open('churn_model.pkl', 'rb') as file:
-    model = pickle.load(file)
+with open('churn_model.pkl', 'rb') as f:
+    model = pickle.load(f)
 
 @app.route('/')
 def home():
-    # Show the website frontend
     return render_template('index.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # Get the data from the website form
+    # Get data from the form
     tenure = float(request.form['tenure'])
     monthly_charges = float(request.form['monthly_charges'])
-    support_calls = int(request.form['support_calls'])
+    support_calls = float(request.form['support_calls'])
 
-    # Format the data for the model
-    features = np.array([[tenure, monthly_charges, support_calls]])
-    
+    # Create a DataFrame for the model
+    input_data = pd.DataFrame([[tenure, monthly_charges, support_calls]], 
+                              columns=['tenure', 'monthly_charges', 'support_calls'])
+
     # Make prediction
-    prediction = model.predict(features)[0]
+    prediction = model.predict(input_data)[0]
     
-    # Format the result
-    if prediction == 1:
-        result = "High Risk of Churn! 🚨"
-    else:
-        result = "Customer is likely to stay. ✅"
-
-    # Send the result back to the website
-    return render_template('index.html', prediction_text=f'Prediction: {result}')
+    result = "High Risk of Churn" if prediction == 1 else "Low Risk (Stay)"
+    
+    return render_template('index.html', prediction_text=result)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Use the port Render provides or default to 5000
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
